@@ -108,6 +108,11 @@ TypeId RedQueueDisc::GetTypeId (void)
                    BooleanValue (false),
                    MakeBooleanAccessor (&RedQueueDisc::m_isARED),
                    MakeBooleanChecker ())
+    .AddAttribute ("RARED",
+                   "True to enable RARED",
+                   BooleanValue (false),
+                   MakeBooleanAccessor (&RedQueueDisc::m_isRARED),
+                   MakeBooleanChecker ())
     .AddAttribute ("AdaptMaxP",
                    "True to adapt m_curMaxP",
                    BooleanValue (false),
@@ -410,15 +415,12 @@ RedQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
       return false;
     }
 
-  bool retval = GetInternalQueue (0)->Enqueue (item);
-
-  // If Queue::Enqueue fails, QueueDisc::Drop is called by the internal queue
-  // because QueueDisc::AddInternalQueue sets the drop callback
+  GetInternalQueue (0)->Enqueue (item);
 
   NS_LOG_LOGIC ("Number packets " << GetInternalQueue (0)->GetNPackets ());
   NS_LOG_LOGIC ("Number bytes " << GetInternalQueue (0)->GetNBytes ());
 
-  return retval;
+  return true;
 }
 
 /*
@@ -445,6 +447,14 @@ RedQueueDisc::InitializeParams (void)
 
       // Turn on m_isAdaptMaxP to adapt m_curMaxP
       m_isAdaptMaxP = true;
+    }
+
+  if (m_isRARED)
+    {
+      // Set m_minTh, m_maxTh and m_qW to zero for automatic setting
+      m_minTh = 0;
+      m_maxTh = 0;
+      m_qW = 0;
     }
 
   if (m_minTh == 0 && m_maxTh == 0)
@@ -573,6 +583,29 @@ RedQueueDisc::UpdateMaxP (double newAve, Time now)
     }
 }
 
+// Update m_curMaxP to keep the average queue size near the specified target queue size
+void
+RedQueueDisc::UpdateMaxPRefined (double newAve, Time now)
+{
+  double m_part = 0.48 * (m_maxTh - m_minTh);
+  // AIMD rule to keep target Q~1/2(m_minTh + m_maxTh)
+  if (newAve < m_minTh + m_part && m_curMaxP > m_bottom)
+    {
+      // we should increase the average queue size, so decrease m_curMaxP
+      m_beta = 1 - (0.17 * (((m_minTh + m_part) - newAve) / ((m_minTh + m_part) - m_minTh)));
+      m_curMaxP = m_curMaxP * m_beta;
+      m_lastSet = now;
+    }
+  else if (newAve > m_maxTh - m_part && m_top > m_curMaxP)
+    {
+      // we should decrease the average queue size, so increase m_curMaxP
+      double alpha = m_alpha;
+      alpha = 0.25 * ((newAve - (m_maxTh - m_part)) / (m_maxTh - m_part)) * m_curMaxP;
+      m_curMaxP = m_curMaxP + alpha;
+      m_lastSet = now;
+    }
+}
+
 // Compute the average queue size
 double
 RedQueueDisc::Estimator (uint32_t nQueued, uint32_t m, double qAvg, double qW)
@@ -583,11 +616,14 @@ RedQueueDisc::Estimator (uint32_t nQueued, uint32_t m, double qAvg, double qW)
   newAve += qW * nQueued;
 
   Time now = Simulator::Now();
-  if (m_isAdaptMaxP && now > m_lastSet + m_interval)
+  if (m_isRARED && now > m_lastSet + m_interval)
+    {
+      UpdateMaxPRefined(newAve, now);
+    }
+  else if (m_isAdaptMaxP && now > m_lastSet + m_interval)
     {
       UpdateMaxP(newAve, now);
     }
-
   return newAve;
 }
 
