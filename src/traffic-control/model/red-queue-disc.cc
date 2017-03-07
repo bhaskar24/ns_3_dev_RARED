@@ -20,8 +20,8 @@
  * Thanks to: Duy Nguyen<duy@soe.ucsc.edu> by RED efforts in NS3
  *
  *
- * This file incorporates work covered by the following copyright and  
- * permission notice:  
+ * This file incorporates work covered by the following copyright and
+ * permission notice:
  *
  * Copyright (c) 1990-1997 Regents of the University of California.
  * All rights reserved.
@@ -52,7 +52,7 @@
  */
 
 /*
- * PORT NOTE: This code was ported from ns-2 (queue/red.cc).  Almost all 
+ * PORT NOTE: This code was ported from ns-2 (queue/red.cc).  Almost all
  * comments have also been ported from NS-2
  */
 
@@ -107,6 +107,11 @@ TypeId RedQueueDisc::GetTypeId (void)
                    "True to enable ARED",
                    BooleanValue (false),
                    MakeBooleanAccessor (&RedQueueDisc::m_isARED),
+                   MakeBooleanChecker ())
+    .AddAttribute ("RARED",
+                   "True to enable RARED",
+                   BooleanValue (false),
+                   MakeBooleanAccessor (&RedQueueDisc::m_isRARED),
                    MakeBooleanChecker ())
     .AddAttribute ("AdaptMaxP",
                    "True to adapt m_curMaxP",
@@ -183,12 +188,12 @@ TypeId RedQueueDisc::GetTypeId (void)
                    BooleanValue (false),
                    MakeBooleanAccessor (&RedQueueDisc::m_isNs1Compat),
                    MakeBooleanChecker ())
-    .AddAttribute ("LinkBandwidth", 
+    .AddAttribute ("LinkBandwidth",
                    "The RED link bandwidth",
                    DataRateValue (DataRate ("1.5Mbps")),
                    MakeDataRateAccessor (&RedQueueDisc::m_linkBandwidth),
                    MakeDataRateChecker ())
-    .AddAttribute ("LinkDelay", 
+    .AddAttribute ("LinkDelay",
                    "The RED link delay",
                    TimeValue (MilliSeconds (20)),
                    MakeTimeAccessor (&RedQueueDisc::m_linkDelay),
@@ -303,7 +308,7 @@ RedQueueDisc::GetStats ()
   return m_stats;
 }
 
-int64_t 
+int64_t
 RedQueueDisc::AssignStreams (int64_t stream)
 {
   NS_LOG_FUNCTION (this << stream);
@@ -369,7 +374,7 @@ RedQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
         }
       else if (m_old == 0)
         {
-          /* 
+          /*
            * The average queue size has just crossed the
            * threshold from below to above "minthresh", or
            * from above "minthresh" with an empty queue to
@@ -385,7 +390,7 @@ RedQueueDisc::DoEnqueue (Ptr<QueueDiscItem> item)
           dropType = DTYPE_UNFORCED;
         }
     }
-  else 
+  else
     {
       // No packets are being dropped
       m_vProb = 0.0;
@@ -464,6 +469,14 @@ RedQueueDisc::InitializeParams (void)
       m_isAdaptMaxP = true;
     }
 
+  if (m_isRARED)
+    {
+      // Set m_minTh, m_maxTh and m_qW to zero for automatic setting
+      m_minTh = 0;
+      m_maxTh = 0;
+      m_qW = 0;
+    }
+
   if (m_minTh == 0 && m_maxTh == 0)
     {
       m_minTh = 5.0;
@@ -500,7 +513,7 @@ RedQueueDisc::InitializeParams (void)
   double th_diff = (m_maxTh - m_minTh);
   if (th_diff == 0)
     {
-      th_diff = 1.0; 
+      th_diff = 1.0;
     }
   m_vA = 1.0 / th_diff;
   m_curMaxP = 1.0 / m_lInterm;
@@ -516,13 +529,13 @@ RedQueueDisc::InitializeParams (void)
 /*
  * If m_qW=0, set it to a reasonable value of 1-exp(-1/C)
  * This corresponds to choosing m_qW to be of that value for
- * which the packet time constant -1/ln(1-m)qW) per default RTT 
+ * which the packet time constant -1/ln(1-m)qW) per default RTT
  * of 100ms is an order of magnitude more than the link capacity, C.
  *
  * If m_qW=-1, then the queue weight is set to be a function of
- * the bandwidth and the link propagation delay.  In particular, 
- * the default RTT is assumed to be three times the link delay and 
- * transmission delay, if this gives a default RTT greater than 100 ms. 
+ * the bandwidth and the link propagation delay.  In particular,
+ * the default RTT is assumed to be three times the link delay and
+ * transmission delay, if this gives a default RTT greater than 100 ms.
  *
  * If m_qW=-2, set it to a reasonable value of 1-exp(-10/C).
  */
@@ -558,7 +571,7 @@ RedQueueDisc::InitializeParams (void)
         }
     }
 
-  NS_LOG_DEBUG ("\tm_delay " << m_linkDelay.GetSeconds () << "; m_isWait " 
+  NS_LOG_DEBUG ("\tm_delay " << m_linkDelay.GetSeconds () << "; m_isWait "
                              << m_isWait << "; m_qW " << m_qW << "; m_ptc " << m_ptc
                              << "; m_minTh " << m_minTh << "; m_maxTh " << m_maxTh
                              << "; m_isGentle " << m_isGentle << "; th_diff " << th_diff
@@ -595,6 +608,29 @@ RedQueueDisc::UpdateMaxP (double newAve)
     }
 }
 
+// Update m_curMaxP to keep the average queue size near the specified target queue size
+void
+RedQueueDisc::UpdateMaxPRefined (double newAve, Time now)
+{
+  double m_part = 0.48 * (m_maxTh - m_minTh);
+  // AIMD rule to keep target Q~1/2(m_minTh + m_maxTh)
+  if (newAve < m_minTh + m_part && m_curMaxP > m_bottom)
+    {
+      // we should increase the average queue size, so decrease m_curMaxP
+      m_beta = 1 - (0.17 * (((m_minTh + m_part) - newAve) / ((m_minTh + m_part) - m_minTh)));
+      m_curMaxP = m_curMaxP * m_beta;
+      m_lastSet = now;
+    }
+  else if (newAve > m_maxTh - m_part && m_top > m_curMaxP)
+    {
+      // we should decrease the average queue size, so increase m_curMaxP
+      double alpha = m_alpha;
+      alpha = 0.25 * ((newAve - (m_maxTh - m_part)) / (m_maxTh - m_part)) * m_curMaxP;
+      m_curMaxP = m_curMaxP + alpha;
+      m_lastSet = now;
+    }
+}
+
 // Compute the average queue size
 double
 RedQueueDisc::Estimator (uint32_t nQueued, uint32_t m, double qAvg, double qW)
@@ -605,6 +641,10 @@ RedQueueDisc::Estimator (uint32_t nQueued, uint32_t m, double qAvg, double qW)
   newAve += qW * nQueued;
 
   Time now = Simulator::Now ();
+  if (m_isRARED && now > m_lastSet + m_interval)
+    {
+      UpdateMaxPRefined(newAve, now);
+    }
   if (m_isAdaptMaxP && now > m_lastSet + m_interval)
     {
       UpdateMaxP(newAve);
@@ -690,7 +730,7 @@ RedQueueDisc::CalculatePNew (double qAvg, double maxTh, bool isGentle, double vA
     }
   else if (!isGentle && qAvg >= maxTh)
     {
-      /* 
+      /*
        * OLD: p continues to range linearly above max_p as
        * the average queue size ranges above th_max.
        * NEW: p is set to 1.0
@@ -716,7 +756,7 @@ RedQueueDisc::CalculatePNew (double qAvg, double maxTh, bool isGentle, double vA
 }
 
 // Returns a probability using these function parameters for the DropEarly funtion
-double 
+double
 RedQueueDisc::ModifyP (double p, uint32_t count, uint32_t countBytes,
                    uint32_t meanPktSize, bool isWait, uint32_t size)
 {
