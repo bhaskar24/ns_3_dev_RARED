@@ -35,6 +35,13 @@ in ns-3 contains implementation of both the features, and is a port of Sally
 Floyd's ns-2 ARED model. Note that the user is allowed to choose and explicitly
 configure the simulation by selecting feature (i) or feature (ii), or both.
 
+Refined Adaptive Random Early Detection (RARED)
+======================================
+RARED is a variant of RED that aims at improving the performance of ARED
+by bringing the average queue size closer to its target value more quickly.
+The model in ns-3 contains implementation of above feature which is a port of T. Kim and
+K. Lee ns-2 RARED model.
+
 Explicit Congestion Notification (ECN)
 ======================================
 This RED model supports an ECN mode of operation to notify endpoints of
@@ -62,6 +69,9 @@ S.Floyd, K.Fall http://icir.org/floyd/papers/redsims.ps
 
 ARED queue implementation is based on the algorithm provided in:
 S. Floyd et al, http://www.icir.org/floyd/papers/adaptiveRed.pdf
+
+RARED queue implementation is based on the algorithm provided in:
+T. Kim, K. Lee, http://ieeexplore.ieee.org/document/4108421/?reload=true&arnumber=4108421
 
 The addition of explicit congestion notification (ECN) to IP:
 K. K. Ramakrishnan et al, https://tools.ietf.org/html/rfc3168
@@ -99,6 +109,10 @@ In addition to RED attributes, ARED queue requires following attributes:
 * Beta (decrement parameter for m_curMaxP)
 * RTT
 
+In addition to RED and ARED attributes, RARED queue requires following attributes:
+
+* RARED (Boolean attribute. Default: false)
+
 Consult the ns-3 documentation for explanation of these attributes.
 
 Simulating ARED
@@ -133,6 +147,16 @@ To configure (ii); AdaptMaxP must be set to true, as done in
 
   Config::SetDefault ("ns3::RedQueueDisc::AdaptMaxP", BooleanValue (true));
 
+Simulating RARED
+===============
+
+To switch on RARED algorithm, the attribute RARED must be set to true,
+as done in ``src/traffic-control/examples/red-vs-rared.cc``:
+
+.. sourcecode:: cpp
+
+  Config::SetDefault ("ns3::RedQueueDisc::RARED", BooleanValue (true));
+
 Examples
 ========
 
@@ -141,6 +165,9 @@ The RED queue example is found at ``src/traffic-control/examples/red-tests.cc``.
 ARED queue examples can be found at:
 ``src/traffic-control/examples/adaptive-red-tests.cc`` and 
 ``src/traffic-control/examples/red-vs-ared.cc``
+
+RARED queue examples can be found at:
+``src/traffic-control/examples/red-vs-rared.cc``
 
 Validation
 **********
