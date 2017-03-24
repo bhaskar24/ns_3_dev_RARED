@@ -341,6 +341,23 @@ AredQueueDiscTestCase::RunAredDiscTest (StringValue mode)
   st = StaticCast<RedQueueDisc> (queue)->GetStats ();
   uint32_t test10 = st.unforcedDrop;
   NS_TEST_EXPECT_MSG_LT (test10, test9, "Test 10 should have less unforced drops than test 9");
+
+
+  // test 11: Refined Adaptive RED (automatic and adaptive settings enabled)
+  queue = CreateObject<RedQueueDisc> ();
+  NS_TEST_EXPECT_MSG_EQ (queue->SetAttributeFailSafe ("Mode", mode), true,
+                         "Verify that we can actually set the attribute Mode");
+  NS_TEST_EXPECT_MSG_EQ (queue->SetAttributeFailSafe ("QueueLimit", UintegerValue (qSize)), true,
+                         "Verify that we can actually set the attribute QueueLimit");
+  NS_TEST_EXPECT_MSG_EQ (queue->SetAttributeFailSafe ("RARED", BooleanValue (true)), true,
+                         "Verify that we can actually set the attribute RARED");
+  queue->Initialize ();
+  EnqueueWithDelay (queue, pktSize, 300);
+  Simulator::Stop (Seconds (5));
+  Simulator::Run ();
+  st = StaticCast<RedQueueDisc> (queue)->GetStats ();
+  uint32_t test11 = st.unforcedDrop;
+  NS_TEST_EXPECT_MSG_LT (test11, test10, "Test 11 should have less unforced drops than test 10");
 }
 
 void
