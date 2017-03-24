@@ -252,6 +252,13 @@ private:
    * \param qSize queue size
    * \returns 0 for no drop/mark, 1 for drop
    */
+  void UpdateMaxPRefined (double newAve);
+  /**
+   * \brief Check if a packet needs to be dropped due to probability mark
+   * \param item queue item
+   * \param qSize queue size
+   * \returns 0 for no drop/mark, 1 for drop
+   */
   uint32_t DropEarly (Ptr<QueueDiscItem> item, uint32_t qSize);
   /**
    * \brief Returns a probability using these function parameters for the DropEarly function
@@ -289,6 +296,7 @@ private:
   bool m_isWait;            //!< True for waiting between dropped packets
   bool m_isGentle;          //!< True to increases dropping prob. slowly when ave queue exceeds maxthresh
   bool m_isARED;            //!< True to enable Adaptive RED
+  bool m_isRARED;           //!< True to enable Refined Adaptive RED
   bool m_isAdaptMaxP;       //!< True to adapt m_curMaxP
   double m_minTh;           //!< Min avg length threshold (bytes)
   double m_maxTh;           //!< Max avg length threshold (bytes), should be >= 2*minTh
