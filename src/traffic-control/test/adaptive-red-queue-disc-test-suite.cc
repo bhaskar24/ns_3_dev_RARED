@@ -21,7 +21,7 @@
 
 #include "ns3/test.h"
 #include "ns3/red-queue-disc.h"
-#include "ns3/drop-tail-queue.h"
+#include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/string.h"
 #include "ns3/double.h"
@@ -58,9 +58,16 @@ public:
 
 private:
   AredQueueDiscTestItem ();
-  /// copy constructor
+  /**
+   * \brief Copy constructor
+   * Disable default implementation to avoid misuse
+   */
   AredQueueDiscTestItem (const AredQueueDiscTestItem &);
-  /// assignment operator
+  /**
+   * \brief Assignment operator
+   * \return this object
+   * Disable default implementation to avoid misuse
+   */
   AredQueueDiscTestItem &operator = (const AredQueueDiscTestItem &);
 };
 
@@ -137,7 +144,7 @@ AredQueueDiscTestCase::RunAredDiscTest (StringValue mode)
   NS_TEST_EXPECT_MSG_EQ (queue->SetAttributeFailSafe ("Mode", mode), true,
                          "Verify that we can actually set the attribute Mode");
 
-  if (queue->GetMode () == Queue::QUEUE_MODE_BYTES)
+  if (queue->GetMode () == RedQueueDisc::QUEUE_DISC_MODE_BYTES)
     {
       pktSize = 500;
       modeSize = pktSize;
@@ -334,23 +341,6 @@ AredQueueDiscTestCase::RunAredDiscTest (StringValue mode)
   st = StaticCast<RedQueueDisc> (queue)->GetStats ();
   uint32_t test10 = st.unforcedDrop;
   NS_TEST_EXPECT_MSG_LT (test10, test9, "Test 10 should have less unforced drops than test 9");
-
-
-  // test 11: Refined Adaptive RED (automatic and adaptive settings enabled)
-  queue = CreateObject<RedQueueDisc> ();
-  NS_TEST_EXPECT_MSG_EQ (queue->SetAttributeFailSafe ("Mode", mode), true,
-                         "Verify that we can actually set the attribute Mode");
-  NS_TEST_EXPECT_MSG_EQ (queue->SetAttributeFailSafe ("QueueLimit", UintegerValue (qSize)), true,
-                         "Verify that we can actually set the attribute QueueLimit");
-  NS_TEST_EXPECT_MSG_EQ (queue->SetAttributeFailSafe ("RARED", BooleanValue (true)), true,
-                         "Verify that we can actually set the attribute RARED");
-  queue->Initialize ();
-  EnqueueWithDelay (queue, pktSize, 300);
-  Simulator::Stop (Seconds (5));
-  Simulator::Run ();
-  st = StaticCast<RedQueueDisc> (queue)->GetStats ();
-  uint32_t test11 = st.unforcedDrop;
-  NS_TEST_EXPECT_MSG_LT (test11, test10, "Test 11 should have less unforced drops than test 10");
 }
 
 void
@@ -377,8 +367,8 @@ AredQueueDiscTestCase::EnqueueWithDelay (Ptr<RedQueueDisc> queue, uint32_t size,
 void
 AredQueueDiscTestCase::DoRun (void)
 {
-  RunAredDiscTest (StringValue ("QUEUE_MODE_PACKETS"));
-  RunAredDiscTest (StringValue ("QUEUE_MODE_BYTES"));
+  RunAredDiscTest (StringValue ("QUEUE_DISC_MODE_PACKETS"));
+  RunAredDiscTest (StringValue ("QUEUE_DISC_MODE_BYTES"));
   Simulator::Destroy ();
 }
 
@@ -395,6 +385,5 @@ public:
     : TestSuite ("adaptive-red-queue-disc", UNIT)
   {
     AddTestCase (new AredQueueDiscTestCase (), TestCase::QUICK);
-//    AddTestCase (new RefinedAdaptiveRedQueueDiscTestCase (), TestCase::QUICK);
   }
 } g_aredQueueDiscTestSuite; ///< the test suite

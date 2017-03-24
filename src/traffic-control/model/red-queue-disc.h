@@ -61,7 +61,6 @@
 #ifndef RED_QUEUE_DISC_H
 #define RED_QUEUE_DISC_H
 
-#include "ns3/packet.h"
 #include "ns3/queue-disc.h"
 #include "ns3/nstime.h"
 #include "ns3/boolean.h"
@@ -122,20 +121,28 @@ public:
   };
 
   /**
-   * \brief Set the operating mode of this queue.
-   *  Set operating mode
+   * \brief Enumeration of the modes supported in the class.
    *
-   * \param mode The operating mode of this queue.
    */
-  void SetMode (Queue::QueueMode mode);
+  enum QueueDiscMode
+  {
+    QUEUE_DISC_MODE_PACKETS,     /**< Use number of packets for maximum queue disc size */
+    QUEUE_DISC_MODE_BYTES,       /**< Use number of bytes for maximum queue disc size */
+  };
 
   /**
-   * \brief Get the encapsulation mode of this queue.
-   * Get the encapsulation mode of this queue
+   * \brief Set the operating mode of this queue disc.
    *
-   * \returns The encapsulation mode of this queue.
+   * \param mode The operating mode of this queue disc.
    */
-  Queue::QueueMode GetMode (void);
+  void SetMode (QueueDiscMode mode);
+
+  /**
+   * \brief Get the operating mode of this queue disc.
+   *
+   * \returns The operating mode of this queue disc.
+   */
+  QueueDiscMode GetMode (void);
 
   /**
    * \brief Get the current value of the queue in bytes or packets.
@@ -245,13 +252,6 @@ private:
    * \param qSize queue size
    * \returns 0 for no drop/mark, 1 for drop
    */
-  void UpdateMaxPRefined (double newAve, Time now);
-  /**
-   * \brief Check if a packet needs to be dropped due to probability mark
-   * \param item queue item
-   * \param qSize queue size
-   * \returns 0 for no drop/mark, 1 for drop
-   */
   uint32_t DropEarly (Ptr<QueueDiscItem> item, uint32_t qSize);
   /**
    * \brief Returns a probability using these function parameters for the DropEarly function
@@ -283,13 +283,12 @@ private:
   Stats m_stats; //!< RED statistics
 
   // ** Variables supplied by user
-  Queue::QueueMode m_mode;  //!< Mode (Bytes or packets)
+  QueueDiscMode m_mode;     //!< Mode (Bytes or packets)
   uint32_t m_meanPktSize;   //!< Avg pkt size
   uint32_t m_idlePktSize;   //!< Avg pkt size used during idle times
   bool m_isWait;            //!< True for waiting between dropped packets
   bool m_isGentle;          //!< True to increases dropping prob. slowly when ave queue exceeds maxthresh
   bool m_isARED;            //!< True to enable Adaptive RED
-  bool m_isRARED;           //!< True to enable Refined Adaptive RED
   bool m_isAdaptMaxP;       //!< True to adapt m_curMaxP
   double m_minTh;           //!< Min avg length threshold (bytes)
   double m_maxTh;           //!< Max avg length threshold (bytes), should be >= 2*minTh
